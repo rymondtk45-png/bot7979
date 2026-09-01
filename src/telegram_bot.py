@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, List
 
 import requests
@@ -97,17 +98,44 @@ class TelegramBot:
     def poll_commands(self) -> List[Dict[str, Any]]:
         if not self.token:
             return []
+
         url = f"{self.base}/getUpdates"
-        try:
-            response = requests.get(
-                url,
-                params={"timeout": 5, "offset": self._last_update_id + 1},
-                timeout=(5, 10),
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except Exception as exc:
-            logger.warning("Telegram polling failed: %s", exc)
+        backoff = 5
+        max_retries = 5
+
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(
+                    url,
+                    params={"timeout": 5, "offset": self._last_update_id + 1},
+                    timeout=(5, 10),
+                )
+
+                if response.status_code == 409 or "Conflict" in str(response.text).lower():
+                    logger.warning(
+                        "Telegram getUpdates conflict (409): another process is using the same token. Retrying in %s seconds.",
+                        backoff,
+                    )
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2, 30)
+                    continue
+
+                response.raise_for_status()
+                payload = response.json()
+                break
+            except Exception as exc:
+                if isinstance(exc, requests.HTTPError) and getattr(exc.response, "status_code", None) == 409:
+                    logger.warning(
+                        "Telegram getUpdates 409 conflict: another process is using the same token. Retrying in %s seconds.",
+                        backoff,
+                    )
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2, 30)
+                    continue
+                logger.warning("Telegram polling failed: %s", exc)
+                return []
+        else:
+            logger.warning("Telegram getUpdates retry limit reached after repeated 409 conflicts. Waiting for next cycle.")
             return []
 
         if not isinstance(payload, dict):

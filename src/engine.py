@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from typing import Dict, Iterable, List
 
@@ -22,6 +23,20 @@ class SignalEngine:
         self.coin_strong_enabled = self.bot.coin_strong_enabled
         self.ws = BinanceWebSocketManager(CONFIG.SYMBOLS, futures=CONFIG.USE_FUTURES)
         self.ws.start()
+        self.telegram_thread = threading.Thread(
+            target=self._telegram_poll_loop,
+            name="telegram-poll-thread",
+            daemon=True,
+        )
+        self.telegram_thread.start()
+
+    def _telegram_poll_loop(self) -> None:
+        while True:
+            try:
+                self.poll_telegram_commands()
+            except Exception as exc:  # pragma: no cover - runtime guard
+                logger.warning("Telegram poll loop crashed unexpectedly: %s", exc)
+            time.sleep(2)
 
     def _get_snapshot(self, symbol: str) -> Dict[str, object]:
         snapshot = self.ws.get_snapshot(symbol)
@@ -106,9 +121,18 @@ class SignalEngine:
 
     def poll_telegram_commands(self) -> None:
         for update in self.bot.poll_commands():
-            parsed = self.bot.parse_command(update.get("text", ""))
+            text = update.get("text", "")
+            parsed = self.bot.parse_command(text)
             if parsed.get("action") == "unknown":
                 continue
+
+            logger.info(
+                "Received Telegram command: action=%s chat_id=%s text=%s",
+                parsed.get("action"),
+                update.get("chat_id"),
+                text,
+            )
+
             self.coin_strong_enabled = bool(parsed.get("enabled", self.coin_strong_enabled))
             self.bot.coin_strong_enabled = self.coin_strong_enabled
             self.bot.send_message(
@@ -181,11 +205,6 @@ class SignalEngine:
 
     def run(self) -> None:
         while True:
-            try:
-                self.poll_telegram_commands()
-            except Exception as exc:  # pragma: no cover - runtime guard
-                logger.warning("Telegram command poll failed: %s", exc)
-
             for symbol in CONFIG.SYMBOLS:
                 try:
                     snapshot = self._get_snapshot(symbol)
