@@ -365,6 +365,16 @@ class SignalExtensionTests(unittest.TestCase):
         self.assertFalse(bot.parse_command("/coinstrong off")["enabled"])
         self.assertTrue(bot.parse_command("/coinstrong on")["enabled"])
 
+    def test_coinstrong_expands_scan_symbols(self):
+        engine = object.__new__(SignalEngine)
+        engine.coin_strong_enabled = True
+
+        base_symbols = ["BTCUSDT", "ETHUSDT"]
+        extra_symbols = ["SOLUSDT", "XRPUSDT", "ADAUSDT"]
+
+        scan_symbols = engine._get_scan_symbols(base_symbols, extra_symbols)
+        self.assertEqual(scan_symbols, ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"])
+
     def test_symbol_ranking_prioritizes_top_coin(self):
         from src.ranking import rank_symbol_signals
 

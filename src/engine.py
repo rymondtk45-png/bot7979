@@ -45,6 +45,18 @@ class SignalEngine:
                 logger.warning("Telegram poll loop crashed unexpectedly: %s", exc)
             time.sleep(2)
 
+    def _get_scan_symbols(self, base_symbols: Iterable[str], extra_symbols: Iterable[str] | None = None) -> List[str]:
+        base_list = [str(symbol).upper() for symbol in (base_symbols or []) if str(symbol).strip()]
+        extra_list = [str(symbol).upper() for symbol in (extra_symbols or []) if str(symbol).strip()]
+        if not self.coin_strong_enabled:
+            return base_list
+
+        merged = list(base_list)
+        for symbol in extra_list:
+            if symbol not in merged:
+                merged.append(symbol)
+        return merged
+
     def _get_snapshot(self, symbol: str) -> Dict[str, object]:
         snapshot = self.ws.get_snapshot(symbol)
         if snapshot:
@@ -339,8 +351,25 @@ class SignalEngine:
 
     def run(self) -> None:
         while True:
-            logger.info("Starting scan cycle for %s symbols", len(CONFIG.SYMBOLS))
-            for symbol in CONFIG.SYMBOLS:
+            base_symbols = list(CONFIG.SYMBOLS)
+            extra_symbols = [
+                "ADAUSDT",
+                "DOGEUSDT",
+                "LINKUSDT",
+                "XRPUSDT",
+                "BNBUSDT",
+                "AVAXUSDT",
+            ]
+            scan_symbols = self._get_scan_symbols(base_symbols, extra_symbols)
+            logger.info(
+                "CoinStrong=%s -> scanning %d symbols (base=%d + extra=%d)",
+                self.coin_strong_enabled,
+                len(scan_symbols),
+                len(base_symbols),
+                len(extra_symbols),
+            )
+
+            for symbol in scan_symbols:
                 try:
                     snapshot = self._get_snapshot(symbol)
                     current_price = safe_float(snapshot.get("last_price"), 0.0)
