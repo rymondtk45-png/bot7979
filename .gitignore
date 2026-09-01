@@ -1,0 +1,27 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python cache and bytecode
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Logs and runtime artifacts
+logs/
+*.log
+*.db
+*.sqlite3
+*.jsonl
+
+# Editors and OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local test artifacts
+.coverage
+.pytest_cache/
