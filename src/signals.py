@@ -329,6 +329,55 @@ def volatility_regime_signal(snapshot: Dict[str, Any]) -> Tuple[str, float, str]
     return "neutral", 24.0, "Low-volatility regime: calmer market, tighter risk"
 
 
+def market_breadth_signal(snapshot: Dict[str, Any]) -> Tuple[str, float, str]:
+    change_24h = safe_float(snapshot.get("change_24h", 0.0))
+    volume_24h = safe_float(snapshot.get("volume_24h", 0.0))
+    if volume_24h <= 0:
+        return "neutral", 0.0, "Volume breadth is unavailable"
+    if change_24h > 2.5:
+        return "long", 58.0, f"Broad market momentum is strong (+{change_24h:.2f}% 24h) with healthy turnover"
+    if change_24h < -2.5:
+        return "short", 58.0, f"Broad market momentum is weak ({change_24h:.2f}% 24h) and risk is skewing lower"
+    return "neutral", 0.0, "Market breadth is balanced"
+
+
+def trend_strength_signal(snapshot: Dict[str, Any]) -> Tuple[str, float, str]:
+    klines = snapshot.get("klines", [])
+    if len(klines) < 20:
+        return "neutral", 0.0, "Insufficient trend data"
+    closes = get_recent_closes(klines)
+    if len(closes) < 20:
+        return "neutral", 0.0, "Insufficient close series"
+    recent = closes[-20:]
+    price = recent[-1]
+    start = recent[0]
+    momentum = (price - start) / max(abs(start), 1e-8)
+    if momentum > 0.018:
+        return "long", 62.0, f"Trend strength is positive at {momentum:.3%} across the recent range"
+    if momentum < -0.018:
+        return "short", 62.0, f"Trend strength is negative at {momentum:.3%} across the recent range"
+    return "neutral", 0.0, "Trend strength is weak or mixed"
+
+
+def volatility_squeeze_signal(snapshot: Dict[str, Any]) -> Tuple[str, float, str]:
+    klines = snapshot.get("klines", [])
+    if len(klines) < 40:
+        return "neutral", 0.0, "Insufficient volatility structure"
+    closes = get_recent_closes(klines)
+    if len(closes) < 40:
+        return "neutral", 0.0, "Not enough closes for squeeze scan"
+    recent = closes[-40:]
+    price = recent[-1]
+    avg_range = sum(abs(recent[i] - recent[i - 1]) for i in range(1, len(recent))) / max(len(recent) - 1, 1)
+    if avg_range <= 0:
+        return "neutral", 0.0, "Range is too flat for a squeeze read"
+    if price > recent[0] * 1.01 and abs(recent[-1] - recent[0]) > avg_range * 2:
+        return "long", 56.0, "Volatility squeeze is resolving upward with directional expansion"
+    if price < recent[0] * 0.99 and abs(recent[-1] - recent[0]) > avg_range * 2:
+        return "short", 56.0, "Volatility squeeze is resolving downward with directional expansion"
+    return "neutral", 0.0, "Compression remains indecisive"
+
+
 def _extract_exchange_weight(snapshot: Dict[str, Any], default_weight: float = 1.0) -> Dict[str, float]:
     exchange_metrics = snapshot.get("exchange_metrics") or {}
     weights: Dict[str, float] = {}
@@ -470,7 +519,15 @@ def composite_signal(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     module_signals = []
     confluence_map: Dict[str, Dict[str, str]] = {}
 
-    for func in (liquidity_sweep_signal, funding_extreme_signal, order_book_imbalance_signal, cross_exchange_divergence_signal):
+    for func in (
+        market_breadth_signal,
+        trend_strength_signal,
+        volatility_squeeze_signal,
+        liquidity_sweep_signal,
+        funding_extreme_signal,
+        order_book_imbalance_signal,
+        cross_exchange_divergence_signal,
+    ):
         direction, score, note, confluence = aggregate_timeframe_confluence(snapshot, func)
         if direction != "neutral":
             module_signals.append({

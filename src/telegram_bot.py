@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import requests
 
@@ -13,6 +13,8 @@ class TelegramBot:
         self.token = token
         self.chat_id = chat_id
         self.base = f"https://api.telegram.org/bot{token}"
+        self.coin_strong_enabled = True
+        self._last_update_id = 0
 
     def send_message(self, text: str) -> Dict[str, Any]:
         if not self.token or not self.chat_id:
@@ -59,8 +61,71 @@ class TelegramBot:
             f"{reason_text}"
         )
 
+    def render_hit_notice(self, signal: Dict[str, Any]) -> str:
+        symbol = signal.get("symbol", "UNKNOWN")
+        direction = str(signal.get("direction", "")).upper()
+        hit_type = str(signal.get("hit_type", "tp")).upper()
+        price = signal.get("price", signal.get("current_price", "-"))
+        entry = signal.get("entry", "-")
+        sl = signal.get("sl", "-")
+        tp = signal.get("tp", "-")
+        label = "chạm SL" if hit_type == "SL" else "chạm TP"
+        return (
+            f"<b>{symbol}</b>  <b>{direction}</b>  <b>{label}</b>\n"
+            f"Entry: {entry} | Price: {price} | SL: {sl} | TP: {tp}\n"
+            f"Kèo này đã {label.lower()} và đang được đóng theo logic tín hiệu"
+        )
+
+    def parse_command(self, text: str) -> Dict[str, Any]:
+        command = (text or "").strip()
+        normalized = command.lower()
+        if not normalized.startswith("/coinstrong"):
+            return {"action": "unknown", "enabled": self.coin_strong_enabled, "raw": command}
+
+        remainder = normalized[len("/coinstrong"):].strip()
+        if remainder in {"", "toggle", "t"}:
+            return {"action": "toggle", "enabled": not self.coin_strong_enabled, "raw": command}
+        if remainder in {"on", "enable", "1", "true"}:
+            return {"action": "enable", "enabled": True, "raw": command}
+        if remainder in {"off", "disable", "0", "false"}:
+            return {"action": "disable", "enabled": False, "raw": command}
+        return {"action": "toggle", "enabled": not self.coin_strong_enabled, "raw": command}
+
+    def poll_commands(self) -> List[Dict[str, Any]]:
+        if not self.token:
+            return []
+        url = f"{self.base}/getUpdates"
+        try:
+            response = requests.get(url, params={"timeout": 30, "offset": self._last_update_id + 1}, timeout=20)
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            logger.warning("Telegram polling failed: %s", exc)
+            return []
+
+        updates = payload.get("result", []) if isinstance(payload, dict) else []
+        commands: List[Dict[str, Any]] = []
+        for update in updates:
+            update_id = int(update.get("update_id", 0))
+            if update_id <= self._last_update_id:
+                continue
+            self._last_update_id = max(self._last_update_id, update_id)
+            message = update.get("message") or {}
+            text = message.get("text") or ""
+            if not text:
+                continue
+            commands.append({"text": text, "chat_id": str(message.get("chat", {}).get("id", self.chat_id))})
+        return commands
+
     def send_signal(self, signal: Dict[str, Any]) -> bool:
         message = self.render_signal(signal)
+        if not message:
+            return False
+        result = self.send_message(message)
+        return bool(result.get("ok"))
+
+    def send_hit_notice(self, signal: Dict[str, Any]) -> bool:
+        message = self.render_hit_notice(signal)
         if not message:
             return False
         result = self.send_message(message)

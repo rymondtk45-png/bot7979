@@ -232,6 +232,60 @@ class SignalExtensionTests(unittest.TestCase):
         self.assertIn("long_short", result)
         self.assertIn("aggregated_ratio", result["long_short"])
 
+    def test_signal_engine_detects_tp_and_sl_hits(self):
+        from src.engine import SignalEngine
+        from src.telegram_bot import TelegramBot
+
+        engine = object.__new__(SignalEngine)
+        engine.active_signals = {
+            "BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "direction": "long",
+                "entry": 100.0,
+                "sl": 95.0,
+                "tp": 110.0,
+                "status": "active",
+            }
+        }
+        self.assertEqual(engine._detect_signal_hit("BTCUSDT", 94.0)["hit_type"], "sl")
+        self.assertEqual(engine._detect_signal_hit("BTCUSDT", 111.0)["hit_type"], "tp")
+        self.assertIsNone(engine._detect_signal_hit("BTCUSDT", 102.0))
+
+        message = TelegramBot("token", "chat").render_hit_notice({
+            "symbol": "BTCUSDT",
+            "direction": "long",
+            "hit_type": "sl",
+            "price": 94.0,
+            "entry": 100.0,
+            "sl": 95.0,
+            "tp": 110.0,
+        })
+        self.assertIn("chạm sl", message.lower())
+
+    def test_composite_signal_includes_expanded_market_modules(self):
+        snapshot = {
+            "symbol": "ETHUSDT",
+            "last_price": 200.0,
+            "klines": make_klines(200.0, 0.5, 200),
+            "bids": [["200", "20"], ["199.8", "8"]],
+            "asks": [["201", "20"], ["201.2", "8"]],
+            "fundingRate": 0.0012,
+            "openInterest": 1500.0,
+            "exchange_prices": {"BINANCE": 200.0, "OKX": 201.0, "BYBIT": 199.5},
+            "volume_24h": 1200000000.0,
+        }
+        signal = composite_signal(snapshot)
+        names = {item["name"] for item in signal["signals"]}
+        self.assertTrue(any(name.endswith("signal") for name in names))
+
+    def test_coinstrong_command_toggle_parsing(self):
+        from src.telegram_bot import TelegramBot
+
+        bot = TelegramBot("token", "chat")
+        self.assertTrue(bot.parse_command("/coinstrong on")["enabled"])
+        self.assertFalse(bot.parse_command("/coinstrong off")["enabled"])
+        self.assertIn("toggle", bot.parse_command("/coinstrong")["action"])
+
 
 if __name__ == "__main__":
     unittest.main()

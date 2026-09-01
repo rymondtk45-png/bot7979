@@ -5,7 +5,7 @@ from typing import Dict, Iterable, List
 from .config import CONFIG
 from .logger import log_signal
 from .market_data import fetch_market_snapshot, rate_limited_request
-from .signals import composite_signal, compute_rolling_correlation
+from .signals import composite_signal, compute_rolling_correlation, safe_float
 from .streaming import BinanceWebSocketManager
 from .telegram_bot import TelegramBot
 
@@ -16,7 +16,9 @@ class SignalEngine:
     def __init__(self):
         self.bot = TelegramBot(CONFIG.TELEGRAM_BOT_TOKEN, CONFIG.TELEGRAM_CHAT_ID)
         self.last_alerts = {}
+        self.hit_alerts = {}
         self.active_signals = {}
+        self.coin_strong_enabled = self.bot.coin_strong_enabled
         self.ws = BinanceWebSocketManager(CONFIG.SYMBOLS, futures=CONFIG.USE_FUTURES)
         self.ws.start()
 
@@ -53,9 +55,71 @@ class SignalEngine:
                 log_signal(signal)
         return expired
 
+    def _detect_signal_hit(self, symbol: str, current_price: float | None = None) -> Dict[str, object] | None:
+        signal = self.active_signals.get(symbol)
+        if not signal:
+            return None
+        if current_price is None:
+            current_price = safe_float(signal.get("current_price"), 0.0)
+        if current_price <= 0:
+            return None
+
+        direction = str(signal.get("direction", "")).lower()
+        sl = float(signal.get("sl", 0.0) or 0.0)
+        tp = float(signal.get("tp", 0.0) or 0.0)
+        if not sl and not tp:
+            return None
+
+        if direction == "long":
+            if sl and current_price <= sl:
+                return {"symbol": symbol, "direction": direction, "hit_type": "sl", "price": current_price}
+            if tp and current_price >= tp:
+                return {"symbol": symbol, "direction": direction, "hit_type": "tp", "price": current_price}
+        elif direction == "short":
+            if sl and current_price >= sl:
+                return {"symbol": symbol, "direction": direction, "hit_type": "sl", "price": current_price}
+            if tp and current_price <= tp:
+                return {"symbol": symbol, "direction": direction, "hit_type": "tp", "price": current_price}
+        return None
+
+    def _handle_hit(self, symbol: str, current_price: float | None = None) -> Dict[str, object] | None:
+        signal = self.active_signals.get(symbol)
+        if not signal:
+            return None
+        hit = self._detect_signal_hit(symbol, current_price)
+        if not hit:
+            return None
+
+        signal.update(hit)
+        signal["status"] = "hit"
+        signal["hit_price"] = hit.get("price")
+        signal["current_price"] = current_price
+        self.active_signals.pop(symbol, None)
+        log_signal(signal)
+
+        if CONFIG.ENABLE_TELEGRAM:
+            self.bot.send_hit_notice(signal)
+
+        self.hit_alerts[symbol] = time.time()
+        return signal
+
+    def poll_telegram_commands(self) -> None:
+        for update in self.bot.poll_commands():
+            parsed = self.bot.parse_command(update.get("text", ""))
+            if parsed.get("action") == "unknown":
+                continue
+            self.coin_strong_enabled = bool(parsed.get("enabled", self.coin_strong_enabled))
+            self.bot.coin_strong_enabled = self.coin_strong_enabled
+            self.bot.send_message(
+                f"<b>CoinStrong</b> {'ON' if self.coin_strong_enabled else 'OFF'}"
+            )
+
     def evaluate_symbol(self, symbol: str) -> Dict[str, object]:
         snapshot = self._get_snapshot(symbol)
         signal = composite_signal(snapshot)
+
+        if not self.coin_strong_enabled:
+            return {"symbol": symbol, "status": "disabled"}
 
         if signal.get("direction") == "neutral" or signal.get("score", 0.0) < CONFIG.THRESHOLD:
             return {"symbol": symbol, "status": "neutral"}
@@ -102,8 +166,20 @@ class SignalEngine:
 
     def run(self) -> None:
         while True:
+            try:
+                self.poll_telegram_commands()
+            except Exception as exc:  # pragma: no cover - runtime guard
+                logger.warning("Telegram command poll failed: %s", exc)
+
             for symbol in CONFIG.SYMBOLS:
                 try:
+                    snapshot = self._get_snapshot(symbol)
+                    current_price = safe_float(snapshot.get("last_price"), 0.0)
+                    if symbol in self.active_signals:
+                        hit = self._handle_hit(symbol, current_price)
+                        if hit:
+                            logger.info("Signal hit for %s: %s at %s", symbol, hit["hit_type"].upper(), current_price)
+                            continue
                     self.evaluate_symbol(symbol)
                 except Exception as exc:  # pragma: no cover - runtime guard
                     logger.warning("Symbol evaluation failed for %s: %s", symbol, exc)
