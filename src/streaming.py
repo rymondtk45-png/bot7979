@@ -31,6 +31,7 @@ class BinanceWebSocketManager:
         streams = []
         for symbol in self.symbols:
             s = symbol.lower()
+            streams.append(f"{s}@trade")
             streams.append(f"{s}@ticker")
             streams.append(f"{s}@bookTicker")
             if self.futures:
@@ -66,11 +67,13 @@ class BinanceWebSocketManager:
             item["bidQty"] = float(stream_data.get("B", 0.0))
             item["askQty"] = float(stream_data.get("A", 0.0))
 
-        if "c" in stream_data:
-            item["last_price"] = float(stream_data.get("c", 0.0))
-        if "P" in stream_data:
-            item["last_price"] = float(stream_data.get("p", 0.0))
         if "p" in stream_data and "P" not in stream_data:
+            item["last_price"] = float(stream_data.get("p", item.get("last_price", 0.0)))
+        if "c" in stream_data:
+            item["last_price"] = float(stream_data.get("c", item.get("last_price", 0.0)))
+        if "P" in stream_data:
+            item["change_24h"] = float(stream_data.get("P", 0.0))
+        if "p" in stream_data and "P" not in stream_data and stream_data.get("e") == "24hrTicker":
             item["change_24h"] = float(stream_data.get("p", 0.0))
         if "u" in stream_data:
             item["last_price"] = float(stream_data.get("c", item.get("last_price", 0.0)))

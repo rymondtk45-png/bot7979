@@ -200,42 +200,63 @@ def aggregate_exchange_prices(symbol: str, exchanges: Iterable[str] | None = Non
 
 
 def fetch_market_snapshot(symbol: str, futures: bool = True, exchanges: Iterable[str] | None = None) -> Dict[str, Any]:
+    snapshot = {
+        "symbol": symbol,
+        "last_price": 0.0,
+        "change_24h": 0.0,
+        "volume_24h": 0.0,
+        "klines": [],
+        "bids": [],
+        "asks": [],
+        "fundingRate": 0.0,
+        "nextFundingTime": 0,
+        "openInterest": 0.0,
+        "exchange_prices": {},
+        "exchange_aggregate": {"symbol": symbol, "exchange_prices": {}, "avg_price": 0.0, "spread_pct": 0.0},
+    }
+
     try:
         klines = fetch_futures_klines(symbol) if futures else fetch_symbol_klines(symbol)
-        order_book = fetch_order_book(symbol, limit=20, futures=futures)
-        ticker = fetch_ticker(symbol)
-        funding = fetch_funding_oi(symbol)
-        oi = fetch_open_interest(symbol)
-        exchange_data = aggregate_exchange_prices(symbol, exchanges=exchanges)
-        return {
-            "symbol": symbol,
-            "last_price": float(ticker.get("lastPrice", 0.0)),
-            "change_24h": float(ticker.get("priceChangePercent", 0.0)),
-            "volume_24h": float(ticker.get("quoteVolume", 0.0)),
-            "klines": klines,
-            "bids": order_book.get("bids", []),
-            "asks": order_book.get("asks", []),
-            "fundingRate": funding.get("fundingRate", 0.0),
-            "nextFundingTime": funding.get("nextFundingTime", 0),
-            "openInterest": oi.get("openInterest", 0.0),
-            "exchange_prices": exchange_data.get("exchange_prices", {}),
-            "exchange_aggregate": exchange_data,
-        }
+        snapshot["klines"] = klines
     except Exception as exc:  # pragma: no cover - network issue path
-        logger.warning("Failed to fetch snapshot for %s: %s", symbol, exc)
-        return {
-            "symbol": symbol,
-            "last_price": 0.0,
-            "change_24h": 0.0,
-            "volume_24h": 0.0,
-            "klines": [],
-            "bids": [],
-            "asks": [],
-            "fundingRate": 0.0,
-            "openInterest": 0.0,
-            "exchange_prices": {},
-            "exchange_aggregate": {"symbol": symbol, "exchange_prices": {}, "avg_price": 0.0, "spread_pct": 0.0},
-        }
+        logger.exception("REST: klines fetch failed for %s", symbol, exc_info=exc)
+
+    try:
+        order_book = fetch_order_book(symbol, limit=20, futures=futures)
+        snapshot["bids"] = order_book.get("bids", [])
+        snapshot["asks"] = order_book.get("asks", [])
+    except Exception as exc:  # pragma: no cover - network issue path
+        logger.exception("REST: order book fetch failed for %s", symbol, exc_info=exc)
+
+    try:
+        ticker = fetch_ticker(symbol)
+        snapshot["last_price"] = float(ticker.get("lastPrice", 0.0))
+        snapshot["change_24h"] = float(ticker.get("priceChangePercent", 0.0))
+        snapshot["volume_24h"] = float(ticker.get("quoteVolume", 0.0))
+    except Exception as exc:  # pragma: no cover - network issue path
+        logger.exception("REST: 24hr ticker fetch failed for %s", symbol, exc_info=exc)
+
+    try:
+        funding = fetch_funding_oi(symbol)
+        snapshot["fundingRate"] = funding.get("fundingRate", 0.0)
+        snapshot["nextFundingTime"] = funding.get("nextFundingTime", 0)
+    except Exception as exc:  # pragma: no cover - network issue path
+        logger.exception("REST: fundingRate fetch failed for %s", symbol, exc_info=exc)
+
+    try:
+        oi = fetch_open_interest(symbol)
+        snapshot["openInterest"] = oi.get("openInterest", 0.0)
+    except Exception as exc:  # pragma: no cover - network issue path
+        logger.exception("REST: openInterest fetch failed for %s", symbol, exc_info=exc)
+
+    try:
+        exchange_data = aggregate_exchange_prices(symbol, exchanges=exchanges)
+        snapshot["exchange_prices"] = exchange_data.get("exchange_prices", {})
+        snapshot["exchange_aggregate"] = exchange_data
+    except Exception as exc:  # pragma: no cover - network issue path
+        logger.exception("REST: cross-exchange price fetch failed for %s", symbol, exc_info=exc)
+
+    return snapshot
 
 
 def rate_limited_request(function, *args, **kwargs):

@@ -232,6 +232,47 @@ class SignalExtensionTests(unittest.TestCase):
         self.assertIn("long_short", result)
         self.assertIn("aggregated_ratio", result["long_short"])
 
+    def test_snapshot_partial_ws_data_is_hydrated_from_rest(self):
+        from src import engine as engine_module
+        from src.engine import SignalEngine
+
+        engine = object.__new__(SignalEngine)
+        engine.ws = type("WS", (), {
+            "get_snapshot": lambda self, symbol: {
+                "symbol": "BTCUSDT",
+                "bestBid": 99.5,
+                "bestAsk": 100.5,
+                "_last_update_ts": time.time(),
+            }
+        })()
+
+        def fake_fetch_snapshot(symbol, futures=True):
+            return {
+                "symbol": symbol,
+                "last_price": 100.0,
+                "bestBid": 99.5,
+                "bestAsk": 100.5,
+                "volume_24h": 1234.5,
+                "change_24h": 1.2,
+                "fundingRate": 0.0008,
+                "openInterest": 5000.0,
+                "klines": [[0, 99.0, 101.0, 98.5, 100.0, 0, 0, 0, 0, 0] for _ in range(40)],
+                "exchange_prices": {"BINANCE": 100.0, "OKX": 100.2, "BYBIT": 99.9},
+            }
+
+        original_fetch = engine_module.fetch_market_snapshot
+        original_rate_limited = engine_module.rate_limited_request
+        try:
+            engine_module.fetch_market_snapshot = fake_fetch_snapshot
+            engine_module.rate_limited_request = lambda fn, *args, **kwargs: fn(*args, **kwargs)
+            snapshot = engine._get_snapshot("BTCUSDT")
+            self.assertEqual(snapshot["last_price"], 100.0)
+            self.assertEqual(snapshot["volume_24h"], 1234.5)
+            self.assertEqual(len(snapshot["klines"]), 40)
+        finally:
+            engine_module.fetch_market_snapshot = original_fetch
+            engine_module.rate_limited_request = original_rate_limited
+
     def test_signal_engine_detects_tp_and_sl_hits(self):
         from src.engine import SignalEngine
         from src.telegram_bot import TelegramBot

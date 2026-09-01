@@ -63,9 +63,33 @@ class SignalEngine:
                 snapshot.get("openInterest"),
                 len(snapshot.get("klines") or []),
             )
-            return snapshot
 
-        logger.warning("WebSocket snapshot empty for %s; falling back to REST market snapshot", symbol)
+            required_trade_fields = [
+                "last_price",
+                "klines",
+                "volume_24h",
+                "change_24h",
+                "fundingRate",
+                "openInterest",
+            ]
+            missing_fields = [
+                field for field in required_trade_fields
+                if (
+                    field not in snapshot
+                    or snapshot.get(field) in (None, "", 0, 0.0)
+                    or (field == "klines" and not snapshot.get(field))
+                )
+            ]
+            if not missing_fields:
+                return snapshot
+
+            logger.warning(
+                "WS snapshot for %s is incomplete; missing %s. Hydrating from REST before scoring.",
+                symbol,
+                missing_fields,
+            )
+
+        logger.warning("WebSocket snapshot missing required market fields for %s; fetching REST market snapshot", symbol)
         snapshot = rate_limited_request(fetch_market_snapshot, symbol, CONFIG.USE_FUTURES)
         logger.debug(
             "REST snapshot for %s: last_price=%s volume_24h=%s change_24h=%s fundingRate=%s openInterest=%s klines=%s",
@@ -77,6 +101,26 @@ class SignalEngine:
             snapshot.get("openInterest") if isinstance(snapshot, dict) else None,
             len((snapshot or {}).get("klines") or []) if isinstance(snapshot, dict) else 0,
         )
+
+        ws_snapshot = self.ws.get_snapshot(symbol) if hasattr(self.ws, "get_snapshot") else {}
+        if isinstance(ws_snapshot, dict) and ws_snapshot:
+            merged = dict(snapshot)
+            for key, value in ws_snapshot.items():
+                if key in {"symbol", "bestBid", "bestAsk", "bidQty", "askQty"} and value is not None:
+                    merged.setdefault(key, value)
+                if key == "last_price" and safe_float(value, 0.0) > 0:
+                    merged["last_price"] = safe_float(value, merged.get("last_price", 0.0))
+                if key == "bestBid" and safe_float(value, 0.0) > 0 and safe_float(merged.get("bestBid"), 0.0) <= 0:
+                    merged["bestBid"] = safe_float(value, 0.0)
+                if key == "bestAsk" and safe_float(value, 0.0) > 0 and safe_float(merged.get("bestAsk"), 0.0) <= 0:
+                    merged["bestAsk"] = safe_float(value, 0.0)
+            if safe_float(merged.get("last_price"), 0.0) <= 0:
+                bid = safe_float(merged.get("bestBid"), 0.0)
+                ask = safe_float(merged.get("bestAsk"), 0.0)
+                if bid > 0 and ask > 0:
+                    merged["last_price"] = (bid + ask) / 2.0
+                    logger.warning("Used mid-price fallback for %s: last_price=%s from bestBid=%s and bestAsk=%s", symbol, merged["last_price"], bid, ask)
+            return merged
         return snapshot
 
     def _get_correlated_symbols(self, symbol: str, price_map: Dict[str, List[float]]) -> List[str]:
