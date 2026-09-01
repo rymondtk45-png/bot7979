@@ -203,4 +203,6 @@ class SignalEngine:
             if ranked:
                 top = ranked[0]
                 logger.info("Top ranked signal: %s (%s, priority=%s)", top["symbol"], top["direction"], top["priority"])
+                if len(ranked) >= 2 and time.time() % 120 < CONFIG.POLL_SECONDS:
+                    self.bot.send_summary_top_coins(ranked[:5])
             time.sleep(CONFIG.POLL_SECONDS)

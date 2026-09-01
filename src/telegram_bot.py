@@ -127,6 +127,19 @@ class TelegramBot:
             commands.append({"text": text, "chat_id": str(message.get("chat", {}).get("id", self.chat_id))})
         return commands
 
+    def render_summary_top_coins(self, ranked: List[Dict[str, Any]]) -> str:
+        if not ranked:
+            return "<b>TOP COIN</b>\nNo active coin ranked above threshold"
+
+        lines = ["<b>TOP COIN</b>"]
+        for idx, item in enumerate(ranked[:5], start=1):
+            symbol = item.get("symbol", "UNKNOWN")
+            direction = str(item.get("direction", "neutral")).upper()
+            score = item.get("score", 0)
+            priority = item.get("priority", 0)
+            lines.append(f"{idx}. <b>{symbol}</b> {direction} | score {score} | priority {priority}")
+        return "\n".join(lines)
+
     def send_signal(self, signal: Dict[str, Any]) -> bool:
         message = self.render_signal(signal)
         if not message:
@@ -139,4 +152,11 @@ class TelegramBot:
         if not message:
             return False
         result = self.send_message(message)
+        return bool(result.get("ok"))
+
+    def send_summary_top_coins(self, ranked: List[Dict[str, Any]]) -> bool:
+        summary = self.render_summary_top_coins(ranked)
+        if not summary:
+            return False
+        result = self.send_message(summary)
         return bool(result.get("ok"))

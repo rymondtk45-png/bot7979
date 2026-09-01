@@ -59,3 +59,11 @@
 2026-09-01 22:10:41,302 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
 2026-09-01 22:11:16,901 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
 2026-09-01 22:11:52,544 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:12:28,210 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:13:03,911 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:13:39,618 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:13:49,411 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=5&offset=1
+{"symbol": "BTCUSDT", "direction": "long", "entry": 100.0, "status": "expired", "expires_at": 1788275652.0002391, "current_price": 99.0, "expired_reason": "TTL exceeded"}
+2026-09-01 22:14:20,150 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:14:24,476 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=5&offset=1
+{"symbol": "BTCUSDT", "direction": "long", "entry": 100.0, "status": "expired", "expires_at": 1788275685.6524105, "current_price": 99.0, "expired_reason": "TTL exceeded"}

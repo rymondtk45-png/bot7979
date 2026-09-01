@@ -298,6 +298,18 @@ class SignalExtensionTests(unittest.TestCase):
         self.assertEqual(ranked[0]["symbol"], "BTCUSDT")
         self.assertLess(ranked[-1]["symbol"], "Z")
 
+    def test_top_coin_summary_message_format(self):
+        from src.telegram_bot import TelegramBot
+
+        bot = TelegramBot("token", "chat")
+        summary = bot.render_summary_top_coins([
+            {"symbol": "BTCUSDT", "direction": "long", "score": 86, "priority": 92.5},
+            {"symbol": "ETHUSDT", "direction": "short", "score": 71, "priority": 78.0},
+        ])
+        self.assertIn("TOP COIN", summary.upper())
+        self.assertIn("BTCUSDT", summary)
+        self.assertIn("ETHUSDT", summary)
+
 
 if __name__ == "__main__":
     unittest.main()
