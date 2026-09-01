@@ -17,3 +17,45 @@
 {"symbol": "BTCUSDT", "direction": "long", "entry": 100.0, "status": "expired", "expires_at": 1788273204.8230639, "current_price": 99.0, "expired_reason": "TTL exceeded"}
 {"symbol": "BTCUSDT", "direction": "long", "entry": 100.0, "status": "expired", "expires_at": 1788274287.022227, "current_price": 99.0, "expired_reason": "TTL exceeded"}
 {"symbol": "BTCUSDT", "direction": "long", "entry": 100.0, "status": "expired", "expires_at": 1788274395.5520551, "current_price": 99.0, "expired_reason": "TTL exceeded"}
+2026-09-01 21:54:02,625 INFO Starting signal aggregation bot
+2026-09-01 21:54:03,541 INFO Websocket connected
+2026-09-01 21:54:24,114 WARNING Telegram polling failed: HTTPSConnectionPool(host='api.telegram.org', port=443): Read timed out. (read timeout=20)
+2026-09-01 21:55:14,603 WARNING Telegram polling failed: HTTPSConnectionPool(host='api.telegram.org', port=443): Read timed out. (read timeout=20)
+2026-09-01 21:55:56,392 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=1
+2026-09-01 21:56:46,410 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=1
+2026-09-01 21:57:36,447 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=1
+2026-09-01 21:58:26,506 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=1
+2026-09-01 21:59:16,593 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=1
+2026-09-01 22:00:07,445 WARNING Telegram polling failed: HTTPSConnectionPool(host='api.telegram.org', port=443): Read timed out. (read timeout=20)
+2026-09-01 22:00:58,487 WARNING Telegram polling failed: HTTPSConnectionPool(host='api.telegram.org', port=443): Read timed out. (read timeout=20)
+2026-09-01 22:01:45,931 ERROR ping/pong timed out - goodbye
+2026-09-01 22:01:55,574 ERROR ping/pong timed out - goodbye
+2026-09-01 22:02:03,033 INFO Websocket connected
+2026-09-01 22:02:04,415 INFO Websocket connected
+2026-09-01 22:02:28,644 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+{"symbol": "BTCUSDT", "direction": "long", "entry": 100.0, "status": "expired", "expires_at": 1788274988.3467166, "current_price": 99.0, "expired_reason": "TTL exceeded"}
+2026-09-01 22:03:19,097 WARNING Telegram polling failed: HTTPSConnectionPool(host='api.telegram.org', port=443): Read timed out. (read timeout=20)
+{"symbol": "BTCUSDT", "direction": "long", "entry": 100.0, "status": "expired", "expires_at": 1788275002.478967, "current_price": 99.0, "expired_reason": "TTL exceeded"}
+2026-09-01 22:03:32,701 ERROR Connection to remote host was lost. - goodbye
+2026-09-01 22:03:34,340 ERROR Connection to remote host was lost. - goodbye
+2026-09-01 22:03:38,535 INFO Websocket connected
+2026-09-01 22:03:39,645 INFO Websocket connected
+2026-09-01 22:04:08,693 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+{"symbol": "BTCUSDT", "direction": "long", "entry": 100.0, "status": "expired", "expires_at": 1788275077.6404557, "current_price": 99.0, "expired_reason": "TTL exceeded"}
+2026-09-01 22:04:58,783 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:05:48,805 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:06:39,489 WARNING Telegram polling failed: HTTPSConnectionPool(host='api.telegram.org', port=443): Read timed out. (read timeout=20)
+2026-09-01 22:07:28,803 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:07:44,692 ERROR Connection to remote host was lost. - goodbye
+2026-09-01 22:07:44,878 ERROR Connection to remote host was lost. - goodbye
+2026-09-01 22:07:50,207 INFO Websocket connected
+2026-09-01 22:07:50,475 INFO Websocket connected
+2026-09-01 22:08:18,844 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+{"symbol": "BTCUSDT", "direction": "long", "entry": 100.0, "status": "expired", "expires_at": 1788275303.4253082, "current_price": 99.0, "expired_reason": "TTL exceeded"}
+2026-09-01 22:09:08,871 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:09:58,905 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:10:10,523 INFO Starting signal aggregation bot
+2026-09-01 22:10:11,596 INFO Websocket connected
+2026-09-01 22:10:41,302 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:11:16,901 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916
+2026-09-01 22:11:52,544 WARNING Telegram polling failed: 409 Client Error: Conflict for url: https://api.telegram.org/bot8785586702:AAHs4TdLhV7ya3_Cl4GOTglZVO_vukGmtrE/getUpdates?timeout=30&offset=326217916

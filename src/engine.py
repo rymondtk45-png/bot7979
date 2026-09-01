@@ -5,6 +5,7 @@ from typing import Dict, Iterable, List
 from .config import CONFIG
 from .logger import log_signal
 from .market_data import fetch_market_snapshot, rate_limited_request
+from .ranking import select_top_priority_signals
 from .signals import composite_signal, compute_rolling_correlation, safe_float
 from .streaming import BinanceWebSocketManager
 from .telegram_bot import TelegramBot
@@ -151,6 +152,20 @@ class SignalEngine:
         self.last_alerts[group_key] = now
         return signal
 
+    def rank_active_signals(self) -> List[Dict[str, object]]:
+        candidates = []
+        for symbol, signal in self.active_signals.items():
+            candidate = {
+                "symbol": signal.get("symbol", symbol),
+                "score": float(signal.get("score", 0.0) or 0.0),
+                "confidence": float(signal.get("confidence", 0.0) or 0.0),
+                "direction": signal.get("direction", "neutral"),
+                "confluence": signal.get("confluence", {}),
+                "regime": signal.get("regime", "mixed"),
+            }
+            candidates.append(candidate)
+        return select_top_priority_signals(candidates, limit=5)
+
     def _build_symbol_price_map(self) -> Dict[str, List[float]]:
         price_map: Dict[str, List[float]] = {}
         for candidate in CONFIG.SYMBOLS:
@@ -183,4 +198,9 @@ class SignalEngine:
                     self.evaluate_symbol(symbol)
                 except Exception as exc:  # pragma: no cover - runtime guard
                     logger.warning("Symbol evaluation failed for %s: %s", symbol, exc)
+
+            ranked = self.rank_active_signals()
+            if ranked:
+                top = ranked[0]
+                logger.info("Top ranked signal: %s (%s, priority=%s)", top["symbol"], top["direction"], top["priority"])
             time.sleep(CONFIG.POLL_SECONDS)

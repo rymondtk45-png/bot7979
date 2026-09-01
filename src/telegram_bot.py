@@ -27,9 +27,12 @@ class TelegramBot:
         }
         url = f"{self.base}/sendMessage"
         try:
-            response = requests.post(url, data=payload, timeout=10)
+            response = requests.post(url, json=payload, timeout=(5, 10))
             response.raise_for_status()
-            return response.json()
+            body = response.json()
+            if body.get("ok") is False:
+                logger.warning("Telegram API rejected message: %s", body)
+            return body
         except Exception as exc:  # pragma: no cover - network failure path
             logger.warning("Telegram send failed: %s", exc)
             return {"ok": False, "error": str(exc)}
@@ -96,14 +99,21 @@ class TelegramBot:
             return []
         url = f"{self.base}/getUpdates"
         try:
-            response = requests.get(url, params={"timeout": 30, "offset": self._last_update_id + 1}, timeout=20)
+            response = requests.get(
+                url,
+                params={"timeout": 5, "offset": self._last_update_id + 1},
+                timeout=(5, 10),
+            )
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:
             logger.warning("Telegram polling failed: %s", exc)
             return []
 
-        updates = payload.get("result", []) if isinstance(payload, dict) else []
+        if not isinstance(payload, dict):
+            return []
+
+        updates = payload.get("result", [])
         commands: List[Dict[str, Any]] = []
         for update in updates:
             update_id = int(update.get("update_id", 0))

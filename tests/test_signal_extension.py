@@ -286,6 +286,18 @@ class SignalExtensionTests(unittest.TestCase):
         self.assertFalse(bot.parse_command("/coinstrong off")["enabled"])
         self.assertIn("toggle", bot.parse_command("/coinstrong")["action"])
 
+    def test_symbol_ranking_prioritizes_top_coin(self):
+        from src.ranking import rank_symbol_signals
+
+        candidates = [
+            {"symbol": "BTCUSDT", "score": 85, "confidence": 0.9, "direction": "long", "confluence": {"15m": "long", "1h": "long", "4h": "long"}, "regime": "trending"},
+            {"symbol": "ETHUSDT", "score": 72, "confidence": 0.8, "direction": "long", "confluence": {"15m": "long", "1h": "neutral", "4h": "long"}, "regime": "trending"},
+            {"symbol": "SOLUSDT", "score": 50, "confidence": 0.5, "direction": "short", "confluence": {"15m": "short", "1h": "neutral", "4h": "neutral"}, "regime": "accumulation"},
+        ]
+        ranked = rank_symbol_signals(candidates)
+        self.assertEqual(ranked[0]["symbol"], "BTCUSDT")
+        self.assertLess(ranked[-1]["symbol"], "Z")
+
 
 if __name__ == "__main__":
     unittest.main()
