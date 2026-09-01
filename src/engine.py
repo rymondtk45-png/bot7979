@@ -48,8 +48,36 @@ class SignalEngine:
     def _get_snapshot(self, symbol: str) -> Dict[str, object]:
         snapshot = self.ws.get_snapshot(symbol)
         if snapshot:
+            last_update_ts = safe_float(snapshot.get("_last_update_ts"), 0.0)
+            age_seconds = (time.time() - last_update_ts) if last_update_ts else None
+            logger.debug(
+                "WS snapshot for %s: age_seconds=%s last_price=%s bestBid=%s bestAsk=%s volume_24h=%s change_24h=%s fundingRate=%s openInterest=%s klines=%s",
+                symbol,
+                round(age_seconds, 2) if age_seconds is not None else "unknown",
+                snapshot.get("last_price"),
+                snapshot.get("bestBid"),
+                snapshot.get("bestAsk"),
+                snapshot.get("volume_24h"),
+                snapshot.get("change_24h"),
+                snapshot.get("fundingRate"),
+                snapshot.get("openInterest"),
+                len(snapshot.get("klines") or []),
+            )
             return snapshot
-        return rate_limited_request(fetch_market_snapshot, symbol, CONFIG.USE_FUTURES)
+
+        logger.warning("WebSocket snapshot empty for %s; falling back to REST market snapshot", symbol)
+        snapshot = rate_limited_request(fetch_market_snapshot, symbol, CONFIG.USE_FUTURES)
+        logger.debug(
+            "REST snapshot for %s: last_price=%s volume_24h=%s change_24h=%s fundingRate=%s openInterest=%s klines=%s",
+            symbol,
+            snapshot.get("last_price") if isinstance(snapshot, dict) else None,
+            snapshot.get("volume_24h") if isinstance(snapshot, dict) else None,
+            snapshot.get("change_24h") if isinstance(snapshot, dict) else None,
+            snapshot.get("fundingRate") if isinstance(snapshot, dict) else None,
+            snapshot.get("openInterest") if isinstance(snapshot, dict) else None,
+            len((snapshot or {}).get("klines") or []) if isinstance(snapshot, dict) else 0,
+        )
+        return snapshot
 
     def _get_correlated_symbols(self, symbol: str, price_map: Dict[str, List[float]]) -> List[str]:
         base_series = price_map.get(symbol, [])
@@ -156,6 +184,21 @@ class SignalEngine:
 
     def evaluate_symbol(self, symbol: str) -> Dict[str, object]:
         snapshot = self._get_snapshot(symbol)
+        logger.info(
+            "evaluate_symbol input for %s: last_price=%s bestBid=%s bestAsk=%s bidQty=%s askQty=%s volume_24h=%s change_24h=%s fundingRate=%s openInterest=%s klines=%s exchange_prices=%s",
+            symbol,
+            snapshot.get("last_price"),
+            snapshot.get("bestBid"),
+            snapshot.get("bestAsk"),
+            snapshot.get("bidQty"),
+            snapshot.get("askQty"),
+            snapshot.get("volume_24h"),
+            snapshot.get("change_24h"),
+            snapshot.get("fundingRate"),
+            snapshot.get("openInterest"),
+            len(snapshot.get("klines") or []),
+            bool(snapshot.get("exchange_prices")) if isinstance(snapshot, dict) else False,
+        )
         signal = composite_signal(snapshot)
 
         enabled_state = self.coin_strong_enabled

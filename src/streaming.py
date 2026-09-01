@@ -1,9 +1,12 @@
 import json
+import logging
 import threading
 import time
 from typing import Any, Dict, Iterable, Optional
 
 import websocket
+
+logger = logging.getLogger(__name__)
 
 
 class BinanceWebSocketManager:
@@ -55,6 +58,7 @@ class BinanceWebSocketManager:
 
         item = self._latest.setdefault(symbol, {})
         item["symbol"] = symbol
+        item["_last_update_ts"] = time.time()
 
         if "b" in stream_data and "B" in stream_data:
             item["bestBid"] = float(stream_data.get("b", 0.0))
@@ -84,6 +88,7 @@ class BinanceWebSocketManager:
     def _run(self) -> None:
         while not self._stop_event.is_set():
             try:
+                logger.warning("WebSocket reconnecting for %s", self.symbols)
                 self._ws = websocket.WebSocketApp(
                     url=self._endpoint(),
                     on_message=self._handle_message,
@@ -91,17 +96,19 @@ class BinanceWebSocketManager:
                     on_close=self._on_close,
                 )
                 self._ws.run_forever(ping_interval=20, ping_timeout=10)
-            except Exception:
-                pass
+            except Exception as exc:  # pragma: no cover - runtime guard
+                logger.warning("WebSocket manager error for %s: %s", self.symbols, exc)
             if not self._stop_event.is_set():
+                logger.warning("WebSocket loop sleeping 5s before reconnect for %s", self.symbols)
                 time.sleep(5)
 
     def _on_error(self, ws, error: Any) -> None:
         if error is not None:
+            logger.warning("WebSocket error for %s: %s", self.symbols, error)
             time.sleep(1)
 
     def _on_close(self, ws, close_status_code: Any, close_msg: Any) -> None:
-        pass
+        logger.warning("WebSocket connection closed for %s: status=%s msg=%s; waiting for reconnect", self.symbols, close_status_code, close_msg)
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
