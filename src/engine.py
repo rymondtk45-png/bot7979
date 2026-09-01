@@ -20,6 +20,7 @@ class SignalEngine:
         self.last_alerts = {}
         self.hit_alerts = {}
         self.active_signals = {}
+        self._coinstrong_lock = threading.Lock()
         self.coin_strong_enabled = self.bot.coin_strong_enabled
         self.ws = BinanceWebSocketManager(CONFIG.SYMBOLS, futures=CONFIG.USE_FUTURES)
         self.ws.start()
@@ -29,6 +30,12 @@ class SignalEngine:
             daemon=True,
         )
         self.telegram_thread.start()
+
+    def set_coinstrong_enabled(self, enabled: bool) -> bool:
+        with self._coinstrong_lock:
+            self.coin_strong_enabled = bool(enabled)
+            self.bot.coin_strong_enabled = self.coin_strong_enabled
+            return self.coin_strong_enabled
 
     def _telegram_poll_loop(self) -> None:
         while True:
@@ -114,7 +121,11 @@ class SignalEngine:
         log_signal(signal)
 
         if CONFIG.ENABLE_TELEGRAM:
-            self.bot.send_hit_notice(signal)
+            logger.info("Sending alert for %s to chat_id=%s", symbol, self.bot.chat_id)
+            try:
+                self.bot.send_hit_notice(signal)
+            except Exception as exc:  # pragma: no cover - runtime guard
+                logger.exception("Failed to send hit notice for %s: %s", symbol, exc)
 
         self.hit_alerts[symbol] = time.time()
         return signal
@@ -133,20 +144,28 @@ class SignalEngine:
                 text,
             )
 
-            self.coin_strong_enabled = bool(parsed.get("enabled", self.coin_strong_enabled))
-            self.bot.coin_strong_enabled = self.coin_strong_enabled
-            self.bot.send_message(
-                f"<b>CoinStrong</b> {'ON' if self.coin_strong_enabled else 'OFF'}"
-            )
+            enabled = bool(parsed.get("enabled", self.coin_strong_enabled))
+            self.set_coinstrong_enabled(enabled)
+            logger.info("CoinStrong state updated to %s by Telegram command", self.coin_strong_enabled)
+            try:
+                self.bot.send_message(
+                    f"<b>CoinStrong</b> {'ON' if self.coin_strong_enabled else 'OFF'}"
+                )
+            except Exception as exc:  # pragma: no cover - runtime guard
+                logger.exception("Failed to send CoinStrong state message to Telegram: %s", exc)
 
     def evaluate_symbol(self, symbol: str) -> Dict[str, object]:
         snapshot = self._get_snapshot(symbol)
         signal = composite_signal(snapshot)
 
-        if not self.coin_strong_enabled:
+        enabled_state = self.coin_strong_enabled
+        if not enabled_state:
+            logger.info("Evaluated %s: score=%s signal=%s (disabled by CoinStrong)", symbol, signal.get("score", 0.0), False)
             return {"symbol": symbol, "status": "disabled"}
 
-        if signal.get("direction") == "neutral" or signal.get("score", 0.0) < CONFIG.THRESHOLD:
+        should_signal = signal.get("direction") != "neutral" and signal.get("score", 0.0) >= CONFIG.THRESHOLD
+        if not should_signal:
+            logger.info("Evaluated %s: score=%s signal=%s", symbol, signal.get("score", 0.0), False)
             return {"symbol": symbol, "status": "neutral"}
 
         correlated_symbols = self._get_correlated_symbols(symbol, self._build_symbol_price_map())
@@ -161,6 +180,7 @@ class SignalEngine:
         now = time.time()
         last_ts = self.last_alerts.get(group_key, 0)
         if now - last_ts < CONFIG.ALERT_COOLDOWN_SECONDS:
+            logger.info("Evaluated %s: score=%s signal=%s (cooldown)", symbol, signal.get("score", 0.0), True)
             return {"symbol": symbol, "status": "cooldown", "group_key": group_key}
 
         signal["symbol"] = symbol
@@ -171,9 +191,14 @@ class SignalEngine:
         log_signal(signal)
 
         if CONFIG.ENABLE_TELEGRAM:
-            self.bot.send_signal(signal)
+            logger.info("Sending alert for %s to chat_id=%s", symbol, self.bot.chat_id)
+            try:
+                self.bot.send_signal(signal)
+            except Exception as exc:  # pragma: no cover - runtime guard
+                logger.exception("Telegram alert send failed for %s: %s", symbol, exc)
 
         self.last_alerts[group_key] = now
+        logger.info("Evaluated %s: score=%s signal=%s", symbol, signal.get("score", 0.0), True)
         return signal
 
     def rank_active_signals(self) -> List[Dict[str, object]]:
@@ -195,7 +220,8 @@ class SignalEngine:
         for candidate in CONFIG.SYMBOLS:
             try:
                 snap = self._get_snapshot(candidate)
-            except Exception:
+            except Exception as exc:  # pragma: no cover - runtime guard
+                logger.warning("Failed to build price map for %s: %s", candidate, exc)
                 continue
             klines = snap.get("klines") or []
             closes = [float(candle[4]) for candle in klines if len(candle) >= 6]
@@ -205,6 +231,7 @@ class SignalEngine:
 
     def run(self) -> None:
         while True:
+            logger.info("Starting scan cycle for %s symbols", len(CONFIG.SYMBOLS))
             for symbol in CONFIG.SYMBOLS:
                 try:
                     snapshot = self._get_snapshot(symbol)
@@ -223,5 +250,8 @@ class SignalEngine:
                 top = ranked[0]
                 logger.info("Top ranked signal: %s (%s, priority=%s)", top["symbol"], top["direction"], top["priority"])
                 if len(ranked) >= 2 and time.time() % 120 < CONFIG.POLL_SECONDS:
-                    self.bot.send_summary_top_coins(ranked[:5])
+                    try:
+                        self.bot.send_summary_top_coins(ranked[:5])
+                    except Exception as exc:  # pragma: no cover - runtime guard
+                        logger.exception("Failed to send summary top-coins alert: %s", exc)
             time.sleep(CONFIG.POLL_SECONDS)

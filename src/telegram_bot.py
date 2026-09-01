@@ -35,7 +35,7 @@ class TelegramBot:
                 logger.warning("Telegram API rejected message: %s", body)
             return body
         except Exception as exc:  # pragma: no cover - network failure path
-            logger.warning("Telegram send failed: %s", exc)
+            logger.exception("Telegram send failed for chat_id=%s. Payload=%s", self.chat_id, text)
             return {"ok": False, "error": str(exc)}
 
     def render_signal(self, signal: Dict[str, Any]) -> str:
