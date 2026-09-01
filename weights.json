@@ -1,0 +1,11 @@
+{
+  "liquidity_sweep": 1.0,
+  "funding_extreme": 1.0,
+  "order_book_imbalance": 1.0,
+  "cross_exchange_divergence": 1.0,
+  "liquidation_heatmap": 0.8,
+  "whale_wallet_tracking": 0.7,
+  "basis_spread": 0.8,
+  "taker_buy_sell_ratio": 0.7,
+  "long_short_ratio": 0.9
+}

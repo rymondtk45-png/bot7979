@@ -1,0 +1,1 @@
+"""Signal aggregation bot package."""
