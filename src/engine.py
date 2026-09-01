@@ -7,7 +7,7 @@ from .config import CONFIG
 from .logger import log_signal
 from .market_data import fetch_market_snapshot, rate_limited_request
 from .ranking import select_top_priority_signals
-from .signals import composite_signal, compute_rolling_correlation, safe_float
+from .signals import adaptive_threshold, composite_signal, compute_rolling_correlation, estimate_market_regime, safe_float
 from .streaming import BinanceWebSocketManager
 from .telegram_bot import TelegramBot
 
@@ -274,6 +274,15 @@ class SignalEngine:
             bool(snapshot.get("exchange_prices")) if isinstance(snapshot, dict) else False,
         )
         signal = composite_signal(snapshot)
+        regime = estimate_market_regime(snapshot)
+        adaptive_value = adaptive_threshold(snapshot, "funding")
+        logger.info(
+            "%s regime=%s adaptive_threshold=%.6f (config_threshold=%.1f)",
+            symbol,
+            regime,
+            adaptive_value,
+            float(CONFIG.THRESHOLD),
+        )
         if not self._validate_signal_direction(signal):
             logger.error("Blocked inconsistent signal for %s before Telegram send: %s", symbol, signal)
             return {"symbol": symbol, "status": "blocked", "signal": signal}
@@ -288,13 +297,26 @@ class SignalEngine:
             logger.info("Evaluated %s: score=%s signal=%s", symbol, signal.get("score", 0.0), False)
             return {"symbol": symbol, "status": "neutral"}
 
-        correlated_symbols = self._get_correlated_symbols(symbol, self._build_symbol_price_map())
+        price_map = self._build_symbol_price_map()
+        correlated_symbols = self._get_correlated_symbols(symbol, price_map)
         if correlated_symbols:
             signal["correlated_with"] = correlated_symbols
             signal["group_key"] = ",".join(sorted([symbol] + correlated_symbols))
         else:
             signal["correlated_with"] = []
             signal["group_key"] = symbol
+            if len(price_map) >= 2:
+                logger.info(
+                    "Correlation check for %s: no correlated peers found despite %d symbols in price_map; likely no strong time-series correlation above threshold.",
+                    symbol,
+                    len(price_map),
+                )
+            else:
+                logger.info(
+                    "Correlation check for %s: skipped because price_map too small (%d symbols); insufficient data to assess peers.",
+                    symbol,
+                    len(price_map),
+                )
 
         group_key = signal.get("group_key", symbol)
         now = time.time()
@@ -360,16 +382,26 @@ class SignalEngine:
                 "BNBUSDT",
                 "AVAXUSDT",
             ]
-            scan_symbols = self._get_scan_symbols(base_symbols, extra_symbols)
+            flag_value = self.coin_strong_enabled
+            symbols = self._get_scan_symbols(base_symbols, extra_symbols)
+            logger.info("CoinStrong=%s | scanning %d symbols: %s", flag_value, len(symbols), symbols)
             logger.info(
                 "CoinStrong=%s -> scanning %d symbols (base=%d + extra=%d)",
                 self.coin_strong_enabled,
-                len(scan_symbols),
+                len(symbols),
                 len(base_symbols),
                 len(extra_symbols),
             )
+            if flag_value:
+                extra_count = max(0, len(symbols) - len(base_symbols))
+                logger.info(
+                    "CoinStrong extra-symbol delta: %d added from EXTRA_SYMBOLS (base=%d, total=%d)",
+                    extra_count,
+                    len(base_symbols),
+                    len(symbols),
+                )
 
-            for symbol in scan_symbols:
+            for symbol in symbols:
                 try:
                     snapshot = self._get_snapshot(symbol)
                     current_price = safe_float(snapshot.get("last_price"), 0.0)

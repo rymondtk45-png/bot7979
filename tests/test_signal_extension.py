@@ -399,6 +399,45 @@ class SignalExtensionTests(unittest.TestCase):
         self.assertIn("BTCUSDT", summary)
         self.assertIn("ETHUSDT", summary)
 
+    def test_run_loop_iterates_scan_symbol_list(self):
+        engine = object.__new__(SignalEngine)
+        engine.coin_strong_enabled = False
+        engine.active_signals = {}
+        engine.last_alerts = {}
+        engine.hit_alerts = {}
+        engine.bot = type("Bot", (), {
+            "chat_id": "chat",
+            "coin_strong_enabled": False,
+            "send_summary_top_coins": lambda self, *args, **kwargs: None,
+            "send_signal": lambda self, *args, **kwargs: None,
+            "send_hit_notice": lambda self, *args, **kwargs: None,
+        })()
+        engine._get_scan_symbols = lambda base_symbols, extra_symbols=None: ["BTCUSDT", "ETHUSDT"]
+        engine._get_snapshot = lambda symbol: {
+            "symbol": symbol,
+            "last_price": 100.0,
+            "klines": make_klines(100.0, 0.1, 200),
+            "volume_24h": 1.0,
+            "change_24h": 1.0,
+            "fundingRate": 0.0,
+            "openInterest": 1.0,
+        }
+        engine._handle_hit = lambda symbol, current_price: None
+        engine.evaluate_symbol = lambda symbol: {"symbol": symbol, "status": "neutral"}
+        engine.rank_active_signals = lambda: []
+
+        original_sleep = time.sleep
+
+        def fake_sleep(seconds):
+            raise RuntimeError("stop")
+
+        time.sleep = fake_sleep
+        try:
+            with self.assertRaisesRegex(RuntimeError, "stop"):
+                engine.run()
+        finally:
+            time.sleep = original_sleep
+
 
 if __name__ == "__main__":
     unittest.main()

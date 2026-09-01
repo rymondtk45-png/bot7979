@@ -58,6 +58,7 @@ class AppConfig:
     USE_FUTURES = os.getenv("USE_FUTURES", "True").lower() in {"1", "true", "yes", "y"}
     ALERT_COOLDOWN_SECONDS = int(os.getenv("ALERT_COOLDOWN_SECONDS", "900"))
     ENABLE_TELEGRAM = os.getenv("ENABLE_TELEGRAM", "True").lower() in {"1", "true", "yes", "y"}
+    ENABLE_MARKET_INTEL_SCORING = os.getenv("ENABLE_MARKET_INTEL_SCORING", "False").lower() in {"1", "true", "yes", "y"}
     LOG_PATH = Path(os.getenv("LOG_PATH", "logs/signals.jsonl"))
     WEIGHTS = _load_weights()
 

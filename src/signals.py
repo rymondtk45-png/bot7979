@@ -186,6 +186,17 @@ def aggregate_timeframe_confluence(snapshot: Dict[str, Any], module_fn) -> Tuple
 
     long_count = votes.get("long", 0)
     short_count = votes.get("short", 0)
+    threshold_met = long_count >= 2 or short_count >= 2
+    chosen_direction = "long" if long_count >= 2 else "short" if short_count >= 2 else "neutral"
+    __import__("logging").getLogger(__name__).info(
+        "%s confluence vote: 15m=%s 1h=%s 4h=%s -> direction=%s (threshold_met=%s)",
+        snapshot.get("symbol", "UNKNOWN"),
+        confluence.get("15m", "neutral"),
+        confluence.get("1h", "neutral"),
+        confluence.get("4h", "neutral"),
+        chosen_direction,
+        threshold_met,
+    )
     if long_count >= 2:
         signal_score = max(scores.values()) if scores else 0.0
         multiplier = 1.15 if long_count == 2 else 1.3
