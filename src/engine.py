@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class SignalEngine:
     def __init__(self):
-        self.bot = TelegramBot(CONFIG.TELEGRAM_BOT_TOKEN, CONFIG.TELEGRAM_CHAT_ID)
+        self.bot = TelegramBot(CONFIG.TELEGRAM_BOT_TOKEN, CONFIG.TELEGRAM_CHAT_ID, coin_strong_enabled=True)
         self.last_alerts = {}
         self.hit_alerts = {}
         self.active_signals = {}
@@ -226,6 +226,24 @@ class SignalEngine:
             except Exception as exc:  # pragma: no cover - runtime guard
                 logger.exception("Failed to send CoinStrong state message to Telegram: %s", exc)
 
+    def _validate_signal_direction(self, signal: Dict[str, object]) -> bool:
+        direction = str(signal.get("direction", "neutral")).lower()
+        reasons = signal.get("reasons") or []
+        if direction == "neutral":
+            return True
+
+        reason_text = " ".join(str(reason).lower() for reason in reasons)
+        if "long" in reason_text and "short" in reason_text and direction in {"long", "short"}:
+            logger.error(
+                "Signal consistency check failed for %s: direction=%s reasons=%s confluence=%s",
+                signal.get("symbol", "UNKNOWN"),
+                direction,
+                reasons,
+                signal.get("confluence"),
+            )
+            return False
+        return True
+
     def evaluate_symbol(self, symbol: str) -> Dict[str, object]:
         snapshot = self._get_snapshot(symbol)
         logger.info(
@@ -244,6 +262,9 @@ class SignalEngine:
             bool(snapshot.get("exchange_prices")) if isinstance(snapshot, dict) else False,
         )
         signal = composite_signal(snapshot)
+        if not self._validate_signal_direction(signal):
+            logger.error("Blocked inconsistent signal for %s before Telegram send: %s", symbol, signal)
+            return {"symbol": symbol, "status": "blocked", "signal": signal}
 
         enabled_state = self.coin_strong_enabled
         if not enabled_state:

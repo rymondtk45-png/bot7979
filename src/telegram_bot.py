@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class TelegramBot:
-    def __init__(self, token: str, chat_id: str):
+    def __init__(self, token: str, chat_id: str, coin_strong_enabled: bool = True):
         self.token = token
         self.chat_id = chat_id
         self.base = f"https://api.telegram.org/bot{token}"
-        self.coin_strong_enabled = True
+        self.coin_strong_enabled = bool(coin_strong_enabled)
         self._last_update_id = 0
 
     def send_message(self, text: str) -> Dict[str, Any]:

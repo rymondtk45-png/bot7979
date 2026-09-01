@@ -273,6 +273,36 @@ class SignalExtensionTests(unittest.TestCase):
             engine_module.fetch_market_snapshot = original_fetch
             engine_module.rate_limited_request = original_rate_limited
 
+    def test_all_short_timeframes_produce_short_direction_and_filtered_reasons(self):
+        from src.signals import _select_direction_and_reasons
+
+        module_signals = [
+            {"direction": "short", "score": 70.0, "note": "Multi-timeframe short confluence"},
+            {"direction": "short", "score": 68.0, "note": "Trend strength is negative"},
+            {"direction": "short", "score": 72.0, "note": "Funding is elevated with bearish pressure"},
+        ]
+
+        direction, reasons = _select_direction_and_reasons(module_signals)
+        self.assertEqual(direction, "short")
+        self.assertTrue(all(
+            any(token in reason.lower() for token in ["short", "bearish", "negative", "weak", "downward", "sell", "lower", "resistance", "top"])
+            for reason in reasons
+        ))
+        self.assertFalse(any("long" in reason.lower() for reason in reasons))
+
+    def test_signal_reasons_do_not_include_conflicting_long_and_short_confluence(self):
+        from src.signals import _select_direction_and_reasons
+
+        module_signals = [
+            {"direction": "long", "score": 60.0, "note": "Multi-timeframe long confluence"},
+            {"direction": "short", "score": 80.0, "note": "Multi-timeframe short confluence"},
+        ]
+
+        direction, reasons = _select_direction_and_reasons(module_signals)
+        self.assertEqual(direction, "short")
+        self.assertTrue(all("short" in reason.lower() for reason in reasons))
+        self.assertFalse(any("long" in reason.lower() for reason in reasons))
+
     def test_signal_engine_detects_tp_and_sl_hits(self):
         from src.engine import SignalEngine
         from src.telegram_bot import TelegramBot
@@ -326,6 +356,14 @@ class SignalExtensionTests(unittest.TestCase):
         self.assertTrue(bot.parse_command("/coinstrong on")["enabled"])
         self.assertFalse(bot.parse_command("/coinstrong off")["enabled"])
         self.assertIn("toggle", bot.parse_command("/coinstrong")["action"])
+
+    def test_coinstrong_startup_state_is_respected(self):
+        from src.telegram_bot import TelegramBot
+
+        bot = TelegramBot("token", "chat", coin_strong_enabled=False)
+        self.assertFalse(bot.coin_strong_enabled)
+        self.assertFalse(bot.parse_command("/coinstrong off")["enabled"])
+        self.assertTrue(bot.parse_command("/coinstrong on")["enabled"])
 
     def test_symbol_ranking_prioritizes_top_coin(self):
         from src.ranking import rank_symbol_signals

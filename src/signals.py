@@ -515,6 +515,46 @@ def long_short_ratio_signal(snapshot: Dict[str, Any]) -> Tuple[str, float, str, 
     return direction, round(score, 2), note, details
 
 
+def _reason_matches_direction(reason: str, direction: str) -> bool:
+    text = (reason or "").lower()
+    if not text:
+        return False
+
+    if direction == "long":
+        positive_tokens = {
+            "long", "bullish", "buy", "upward", "positive", "strong", "higher",
+            "support", "bottom", "breakout", "rise", "rising", "lift", "uptrend",
+            "buy-side", "aggressive buying", "long-heavy", "short-heavy"
+        }
+        return any(token in text for token in positive_tokens)
+
+    negative_tokens = {
+        "short", "bearish", "sell", "downward", "negative", "weak", "lower",
+        "resistance", "top", "downtrend", "sweep down", "sell-side", "aggressive selling",
+        "long-heavy", "crowd is long-heavy", "weak bids", "weak asks"
+    }
+    return any(token in text for token in negative_tokens)
+
+
+def _select_direction_and_reasons(module_signals: List[Dict[str, Any]]) -> Tuple[str, List[str]]:
+    if not module_signals:
+        return "neutral", ["No module signal triggered"]
+
+    votes = {"long": 0.0, "short": 0.0}
+    for mod in module_signals:
+        direction = str(mod.get("direction", "neutral")).lower()
+        if direction in votes:
+            votes[direction] += float(mod.get("score", 0.0) or 0.0)
+
+    direction = "long" if votes["long"] >= votes["short"] else "short"
+    reasons = [
+        mod.get("note")
+        for mod in module_signals
+        if mod.get("note") and _reason_matches_direction(str(mod.get("note")), direction)
+    ]
+    return direction, reasons
+
+
 def composite_signal(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     module_signals = []
     confluence_map: Dict[str, Dict[str, str]] = {}
@@ -578,11 +618,13 @@ def composite_signal(snapshot: Dict[str, Any]) -> Dict[str, Any]:
             "confluence": {"15m": "neutral", "1h": "neutral", "4h": "neutral"},
         }
 
+    direction, selected_reasons = _select_direction_and_reasons(module_signals)
     votes = {"long": 0.0, "short": 0.0}
     for mod in module_signals:
-        votes[mod["direction"]] += mod["score"]
+        direction_name = str(mod["direction"]).lower()
+        if direction_name in votes:
+            votes[direction_name] += mod["score"]
 
-    direction = "long" if votes["long"] >= votes["short"] else "short"
     final_score = min(100.0, (max(votes["long"], votes["short"]) / max(len(module_signals), 1)) * 1.15)
 
     if any(module.get("confluence") for module in module_signals):
@@ -612,6 +654,18 @@ def composite_signal(snapshot: Dict[str, Any]) -> Dict[str, Any]:
                 confluence[timeframe] = value
 
     regime = estimate_market_regime(snapshot)
+    long_count = sum(1 for value in confluence.values() if value == "long")
+    short_count = sum(1 for value in confluence.values() if value == "short")
+    if long_count and short_count:
+        logger = __import__("logging").getLogger(__name__)
+        logger.error(
+            "Signal mismatch detected: chosen_direction=%s, multi_timeframe_confluence=%s, module_signals=%s",
+            direction,
+            confluence,
+            module_signals,
+        )
+        direction = "short" if short_count >= long_count else "long"
+        selected_reasons = [mod.get("note") for mod in module_signals if str(mod.get("direction", "neutral")).lower() == direction and mod.get("note")]
 
     result = {
         "symbol": snapshot.get("symbol", "UNKNOWN"),
@@ -622,7 +676,7 @@ def composite_signal(snapshot: Dict[str, Any]) -> Dict[str, Any]:
         "entry": round(entry, 4),
         "sl": round(sl, 4),
         "tp": round(tp, 4),
-        "reasons": [mod["note"] for mod in module_signals],
+        "reasons": selected_reasons,
         "correlated_with": snapshot.get("correlated_with", []),
         "confluence": confluence,
         "regime": regime,
